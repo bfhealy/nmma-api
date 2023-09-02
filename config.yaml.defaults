@@ -1,0 +1,21 @@
+database:
+    max_pool_size: 200
+    host: "mongo"
+    port: 27017 # if not null, must be same as in entrypoint of mongo container
+    db: "nmma"
+    replica_set: # replica_set, if using one else null
+    admin_username: "mongoadmin" # fixme: use strong password if exposing the database to the world
+    admin_password: "mongoadminsecret"
+    username: "nmma" # fixme: use strong password if exposing the database to the world
+    password: "nmma"
+    srv: False # to use with mongodb atlas or any other distant mongodb server, where specifying a port is not necessary
+    build_indexes: True
+
+expanse:
+    host: login.expanse.sdsc.edu
+    port: 22
+    username:
+    password:
+
+ports:
+    api: 4000

@@ -1,0 +1,53 @@
+version: "3.7"
+
+volumes:
+  mongodb:
+  logs:
+
+networks:
+  nmma:
+
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: theodlz/nmma_api:latest
+    volumes:
+      - logs:/app/logs
+    expose:
+      - "4000"
+    # fixme:
+    ports:
+      - "4000:4000"
+    links:
+      - mongo:nmma-mongo
+    restart: always
+    depends_on:
+      - mongo
+    networks:
+      - nmma
+
+  mongo:
+    image: mongo:7.0
+    hostname: mongo
+    expose:
+      - "27017"
+    # fixme:
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=mongoadmin
+      - MONGO_INITDB_ROOT_PASSWORD=mongoadminsecret
+      #- MONGO_REPLICA_SET_NAME=rs0
+    volumes:
+      - mongodb:/data/db
+    restart: always
+    networks:
+      - nmma
+    healthcheck:
+      test: test $$(echo "rs.initiate().ok || rs.status().ok" | mongo -u $${MONGO_INITDB_ROOT_USERNAME} -p $${MONGO_INITDB_ROOT_PASSWORD} --quiet) -eq 1
+      interval: 10s
+      start_period: 20s
+    command: [ "--bind_ip_all" ]
