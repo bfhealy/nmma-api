@@ -12,10 +12,18 @@ database:
     build_indexes: True
 
 expanse:
-    host: login.expanse.sdsc.edu
-    port: 22
-    username:
-    password:
+    ssh:
+        host: login.expanse.sdsc.edu
+        port: 22
+        username:
+        password:
+    nmma_dir:
+    data_dirname:
+
+local:
+    nmma_dir:
+    data_dirname:
+    slurm_script_name:
 
 ports:
     api: 4000
