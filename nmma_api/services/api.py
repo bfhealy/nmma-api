@@ -8,7 +8,7 @@ import tornado.web
 from nmma_api.utils.config import load_config
 from nmma_api.utils.logs import make_log
 from nmma_api.utils.mongo import Mongo, init_db
-from nmma_api.tools.expanse import validate_credentials
+from nmma_api.tools.expanse import validate_credentials, submit
 
 log = make_log("main")
 
@@ -77,6 +77,10 @@ class MainHandler(tornado.web.RequestHandler):
         }
         mongo.insert_one("analysis", data)
 
+        # If some amount of time has passed, query and pass a list of pending analyses to Expanse submission code.
+        # (Can use another script to keep track, and perhaps add a flag here specifying whether to submit or not?)
+        submit([data_dict])
+
         return self.write(
             {
                 "status": "pending",
@@ -121,5 +125,7 @@ def make_app():
 if __name__ == "__main__":
     init_db(config)
     app = make_app()
-    app.listen(config["ports"]["api"])
+    port = config["ports"]["api"]
+    app.listen(port)
+    log(f"NMMA Service Listening on port {port}")
     tornado.ioloop.IOLoop.current().start()
