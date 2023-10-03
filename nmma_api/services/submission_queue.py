@@ -18,6 +18,9 @@ def submission_queue():
         try:
             # get the analysis requests that haven't been processed yet
             analysis_requests = mongo.db.analysis.find({"status": "pending"})
+            if len(analysis_requests) == 0:
+                time.sleep(60)
+                continue
             submit(analysis_requests)
             for analysis_request in analysis_requests:
                 mongo.db.analysis.update_one(
@@ -27,7 +30,7 @@ def submission_queue():
         except Exception as e:
             log(f"Failed to submit analysis requests to expanse: {e}")
 
-        time.sleep(10)
+        time.sleep(60)
 
 
 if __name__ == "__main__":

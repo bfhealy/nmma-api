@@ -11,12 +11,12 @@ import warnings
 
 config = load_config()
 
-local_nmma_dir = config['local']['nmma_dir']
-local_data_dirname = config['local']['data_dirname']
-expanse_nmma_dir = config['expanse']['nmma_dir']
-expanse_data_dirname = config['expanse']['data_dirname']
+local_nmma_dir = config["local"]["nmma_dir"]
+local_data_dirname = config["local"]["data_dirname"]
+expanse_nmma_dir = config["expanse"]["nmma_dir"]
+expanse_data_dirname = config["expanse"]["data_dirname"]
 
-slurm_script_name = config['local']['slurm_script_name']
+slurm_script_name = config["local"]["slurm_script_name"]
 
 log = make_log("expanse")
 
@@ -58,8 +58,6 @@ def validate_credentials() -> bool:
 def submit(analyses: list[dict], **kwargs) -> bool:
     """Submit an analysis to expanse."""
 
-    # TODO: Implement this function
-
     # get structure of analyses dict
     for data_dict in analyses:
         analysis_parameters = data_dict["inputs"].get("analysis_parameters", {})
@@ -86,7 +84,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
         try:
             data = Table.read(data_dict["inputs"]["photometry"], format="ascii.csv")
             redshift = Table.read(data_dict["inputs"]["redshift"], format="ascii.csv")
-            z = redshift["redshift"][0]
+            z = redshift["redshift"][0]  # noqa F841
         except Exception as e:
             rez.update(
                 {
@@ -95,17 +93,17 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 }
             )
             return rez
-        
+
         # Set trigger time based on first detection
         TT = np.min(data[data["mag"] != np.ma.masked]["mjd"])
 
         # Give each source a different filename. This file will be copied to Expanse.
-        filename = f'{resource_id}.dat'
+        filename = f"{resource_id}.dat"
         local_data_dir = os.path.join(local_nmma_dir, local_data_dirname)
         os.makedirs(local_data_dir, exist_ok=True)
 
         local_data_path = os.path.join(local_data_dir, filename)
-        with open(local_data_path, 'w') as f:
+        with open(local_data_path, "w") as f:
             # output the data in the format desired by NMMA:
             # remove rows where mag and magerr are missing, or not float, or negative
             data = data[
@@ -122,7 +120,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 f.write(f"{tt} {filt} {mag} {magerr}\n")
 
         expanse_data_dir = os.path.join(expanse_nmma_dir, expanse_data_dirname)
-        expanse.client.exec_command(f'mkdir {expanse_data_dir}')
+        expanse.client.exec_command(f"mkdir {expanse_data_dir}")
 
         expanse_data_path = os.path.join(expanse_data_dir, filename)
 
@@ -132,17 +130,25 @@ def submit(analyses: list[dict], **kwargs) -> bool:
 
         DATA = expanse_data_path
 
-        _, stdout, stderr = expanse.client.exec_command(f'cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT} {slurm_script_name}')
-        print(stdout.read().decode('utf-8'))
-        submit_error = stderr.read().decode('utf-8')
-        if submit_error != '':
-            warnings.warn(f'Submission error: {submit_error}')
-        
+        _, stdout, stderr = expanse.client.exec_command(
+            f"cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT} {slurm_script_name}"
+        )
+        print(stdout.read().decode("utf-8"))
+        submit_error = stderr.read().decode("utf-8")
+        if submit_error != "":
+            warnings.warn(f"Submission error: {submit_error}")
+
     return True
 
 
 def retrieve() -> list[dict]:
     """Retrieve analyses results from expanse."""
+    # retrieve the results from expanse
+    # look into the expanse directory for the results
+    # copy the results to the local directory
+    # update the database
+    # return the results
+    return []  # TODO: implement this method
 
 
 if __name__ == "__main__":
