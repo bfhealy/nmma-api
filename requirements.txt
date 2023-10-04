@@ -6,3 +6,4 @@ supervisor
 fire
 paramiko
 pre-commit
+astropy

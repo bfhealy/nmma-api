@@ -121,5 +121,7 @@ def make_app():
 if __name__ == "__main__":
     init_db(config)
     app = make_app()
-    app.listen(config["ports"]["api"])
+    port = config["ports"]["api"]
+    app.listen(port)
+    log(f"NMMA Service Listening on port {port}")
     tornado.ioloop.IOLoop.current().start()
