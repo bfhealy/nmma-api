@@ -61,10 +61,11 @@ def submit(analyses: list[dict], **kwargs) -> bool:
     # get structure of analyses dict
     for data_dict in analyses:
         analysis_parameters = data_dict["inputs"].get("analysis_parameters", {})
+        timestamp = data_dict.get("created_at", None)
 
         MODEL = analysis_parameters.get("source")
         resource_id = data_dict.get("resource_id", "")
-        LABEL = f"{resource_id}_{MODEL}"
+        LABEL = f"{resource_id}_{timestamp}"
         TMIN = analysis_parameters.get("tmin")
         TMAX = analysis_parameters.get("tmax")
         DT = analysis_parameters.get("dt")
