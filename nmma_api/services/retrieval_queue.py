@@ -11,6 +11,7 @@ log = make_log("queue")
 config = load_config()
 
 mongo = Mongo(**config["database"])
+retrieval_wait_time = config["wait_times"]["retrieval"]
 
 
 def retrieval_queue():
@@ -26,12 +27,11 @@ def retrieval_queue():
                         {"_id": analysis["_id"]},
                         {"$set": {"status": "complete"}},
                     )
-                    mongo.db.results.insert_one(results)
                     upload_analysis_results(results, analysis)
         except Exception as e:
             log(f"Failed to retrieve analysis results from expanse: {e}")
 
-        time.sleep(10)
+        time.sleep(retrieval_wait_time)
 
 
 if __name__ == "__main__":
