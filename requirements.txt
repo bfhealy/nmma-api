@@ -7,3 +7,5 @@ fire
 paramiko
 pre-commit
 astropy
+arviz
+joblib
