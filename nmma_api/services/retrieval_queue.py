@@ -11,6 +11,7 @@ log = make_log("queue")
 config = load_config()
 
 mongo = Mongo(**config["database"])
+retrieval_wait_time = config["wait_times"]["retrieval"]
 
 
 def retrieval_queue():
@@ -18,20 +19,57 @@ def retrieval_queue():
     while True:
         try:
             # get the analysis requests that have been processed
-            analysis_requests = mongo.db.analysis.find({"status": "running"})
+            analysis_requests = mongo.db.analysis.find(
+                {"status": {"$in": ["running", "failed_upload"]}}
+            )
             for analysis in analysis_requests:
-                results = retrieve(analysis)
-                if results is not None:
-                    mongo.db.analysis.update_one(
-                        {"_id": analysis["_id"]},
-                        {"$set": {"status": "complete"}},
+                if (
+                    analysis["status"] == "failed_upload"
+                    and analysis.get("nb_upload_failures", 0) >= 10
+                ):
+                    log(
+                        f"Analysis {analysis['_id']} has failed to upload 10 times. Skipping."
                     )
-                    mongo.db.results.insert_one(results)
-                    upload_analysis_results(results, analysis)
+                    continue
+                if analysis["status"] == "running":
+                    results = retrieve(analysis)
+                else:
+                    try:
+                        results = mongo.db.results.find_one(
+                            {"analysis_id": analysis["_id"]}
+                        )["results"]
+                    except Exception:
+                        results = retrieve(analysis)
+                if results is not None:
+                    if analysis["status"] != "failed_upload":
+                        mongo.insert_one(
+                            "results",
+                            {"analysis_id": analysis["_id"], "results": results},
+                        )
+                    uploaded, error = upload_analysis_results(results, analysis)
+                    if uploaded:
+                        mongo.db.analysis.update_one(
+                            {"_id": analysis["_id"]},
+                            {"$set": {"status": "completed"}},
+                        )
+                    else:
+                        mongo.db.analysis.update_one(
+                            {"_id": analysis["_id"]},
+                            {
+                                "$set": {
+                                    "status": "failed_upload",
+                                    "nb_upload_failures": analysis.get(
+                                        "nb_upload_failures", 0
+                                    )
+                                    + 1,
+                                    "upload_error": error,
+                                }
+                            },
+                        )
         except Exception as e:
             log(f"Failed to retrieve analysis results from expanse: {e}")
 
-        time.sleep(10)
+        time.sleep(retrieval_wait_time)
 
 
 if __name__ == "__main__":

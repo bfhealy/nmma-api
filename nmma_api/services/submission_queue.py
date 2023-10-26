@@ -11,6 +11,8 @@ config = load_config()
 
 mongo = Mongo(**config["database"])
 
+submission_wait_time = config["wait_times"]["submission"]
+
 
 def submission_queue():
     """Submit analysis requests to expanse."""
@@ -20,7 +22,7 @@ def submission_queue():
             analysis_cursor = mongo.db.analysis.find({"status": "pending"})
             analysis_requests = [x for x in analysis_cursor]
             if len(analysis_requests) == 0:
-                time.sleep(60)
+                time.sleep(submission_wait_time)
                 continue
             submit(analysis_requests)
             for analysis_request in analysis_requests:
@@ -31,7 +33,7 @@ def submission_queue():
         except Exception as e:
             log(f"Failed to submit analysis requests to expanse: {e}")
 
-        time.sleep(60)
+        time.sleep(submission_wait_time)
 
 
 if __name__ == "__main__":

@@ -8,13 +8,28 @@ from astropy.time import Time
 import numpy as np
 import os
 import warnings
+import arviz as az
+import tempfile
+import base64
+import json
+import joblib
+
 
 config = load_config()
 
 local_nmma_dir = config["local"]["nmma_dir"]
 local_data_dirname = config["local"]["data_dirname"]
+local_output_dirname = config["local"]["output_dirname"]
+
 expanse_nmma_dir = config["expanse"]["nmma_dir"]
 expanse_data_dirname = config["expanse"]["data_dirname"]
+expanse_output_dirname = config["expanse"]["output_dirname"]
+
+local_data_dir = os.path.join(local_nmma_dir, local_data_dirname)
+local_output_dir = os.path.join(local_nmma_dir, local_output_dirname)
+
+expanse_data_dir = os.path.join(expanse_nmma_dir, expanse_data_dirname)
+expanse_output_dir = os.path.join(expanse_nmma_dir, expanse_output_dirname)
 
 slurm_script_name = config["local"]["slurm_script_name"]
 
@@ -99,8 +114,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
         TT = np.min(data[data["mag"] != np.ma.masked]["mjd"])
 
         # Give each source a different filename. This file will be copied to Expanse.
-        filename = f"{resource_id}.dat"
-        local_data_dir = os.path.join(local_nmma_dir, local_data_dirname)
+        filename = f"{resource_id}_{timestamp}.dat"
         os.makedirs(local_data_dir, exist_ok=True)
 
         local_data_path = os.path.join(local_data_dir, filename)
@@ -120,7 +134,6 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 magerr = row["magerr"]
                 f.write(f"{tt} {filt} {mag} {magerr}\n")
 
-        expanse_data_dir = os.path.join(expanse_nmma_dir, expanse_data_dirname)
         expanse.client.exec_command(f"mkdir {expanse_data_dir}")
 
         expanse_data_path = os.path.join(expanse_data_dir, filename)
@@ -142,14 +155,103 @@ def submit(analyses: list[dict], **kwargs) -> bool:
     return True
 
 
-def retrieve() -> list[dict]:
+def retrieve(analysis: dict) -> dict:
     """Retrieve analyses results from expanse."""
     # retrieve the results from expanse
     # look into the expanse directory for the results
     # copy the results to the local directory
     # update the database
     # return the results
-    return []  # TODO: implement this method
+
+    LABEL = f"{analysis['resource_id']}_{analysis['created_at']}"
+    os.makedirs(os.path.join(local_output_dir, LABEL), exist_ok=True)
+
+    posterior_file = os.path.join(
+        expanse_output_dir, f"{LABEL}/{LABEL}_posterior_samples.dat"
+    )
+    local_posterior_file = os.path.join(
+        local_output_dir, f"{LABEL}/{LABEL}_posterior_samples.dat"
+    )
+
+    json_file = os.path.join(expanse_output_dir, f"{LABEL}/{LABEL}_result.json")
+    local_json_file = os.path.join(local_output_dir, f"{LABEL}/{LABEL}_result.json")
+
+    lightcurves_file = os.path.join(
+        expanse_output_dir, f"{LABEL}/{LABEL}_lightcurves.png"
+    )
+    local_lightcurves_file = os.path.join(
+        local_output_dir, f"{LABEL}/{LABEL}_lightcurves.png"
+    )
+
+    local_temp_files = []
+
+    sftp = expanse.client.open_sftp()
+
+    try:
+        # Check if results files exist
+        sftp.stat(posterior_file)
+        sftp.stat(json_file)
+        sftp.stat(lightcurves_file)
+
+        # Download files to local directory
+        sftp.get(posterior_file, local_posterior_file)
+        sftp.get(json_file, local_json_file)
+        sftp.get(lightcurves_file, local_lightcurves_file)
+
+        # Structure files to prepare for return
+        tab = Table.read(local_posterior_file, format="csv", delimiter=" ")
+        inference = az.convert_to_inference_data(tab.to_pandas().to_dict(orient="list"))
+
+        f = tempfile.NamedTemporaryFile(
+            suffix=".nc", prefix="inferencedata_", delete=False
+        )
+        f.close()
+
+        inference.to_netcdf(f.name)
+        inference_data = base64.b64encode(open(f.name, "rb").read()).decode()
+        local_temp_files.append(f.name)
+
+        with open(local_json_file) as f:
+            result = json.load(f)
+        log_bayes_factor = result["log_bayes_factor"]
+        f = tempfile.NamedTemporaryFile(suffix=".png", prefix="nmmaplot_", delete=False)
+        f.close()
+
+        plot_data = base64.b64encode(open(local_lightcurves_file, "rb").read()).decode()
+        local_temp_files.append(f.name)
+
+        f = tempfile.NamedTemporaryFile(
+            suffix=".joblib", prefix="results_", delete=False
+        )
+        f.close()
+
+        joblib.dump(result, f.name, compress=3)
+        result_data = base64.b64encode(open(f.name, "rb").read()).decode()
+        local_temp_files.append(f.name)
+
+        analysis_results = {
+            "inference_data": {"format": "netcdf4", "data": inference_data},
+            "plots": [{"format": "png", "data": plot_data}],
+            "results": {"format": "joblib", "data": result_data},
+        }
+
+        results = {
+            "analysis": analysis_results,
+            "status": "success",
+            "message": f"Good results with log Bayes factor={log_bayes_factor}",
+        }
+
+    except FileNotFoundError:
+        return None
+    finally:
+        sftp.close()
+        for f in local_temp_files:
+            try:
+                os.remove(f)
+            except:  # noqa E722
+                pass
+
+    return results
 
 
 if __name__ == "__main__":
