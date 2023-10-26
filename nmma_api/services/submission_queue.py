@@ -21,6 +21,7 @@ def submission_queue():
             # get the analysis requests that haven't been processed yet
             analysis_cursor = mongo.db.analysis.find({"status": "pending"})
             analysis_requests = [x for x in analysis_cursor]
+            log(f"Found {len(analysis_requests)} analysis requests to submit.")
             if len(analysis_requests) == 0:
                 time.sleep(submission_wait_time)
                 continue
