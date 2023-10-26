@@ -22,6 +22,10 @@ def retrieval_queue():
             analysis_requests = mongo.db.analysis.find(
                 {"status": {"$in": ["running", "failed_upload"]}}
             )
+            analysis_requests = [x for x in analysis_requests]
+            log(
+                f"Found {len(analysis_requests)} analysis requests to retrieve/process."
+            )
             for analysis in analysis_requests:
                 if (
                     analysis["status"] == "failed_upload"
@@ -41,6 +45,9 @@ def retrieval_queue():
                     except Exception:
                         results = retrieve(analysis)
                 if results is not None:
+                    log(
+                        f"Uploading results to webhook for analysis {analysis['_id']} ({analysis['resource_id']}, {analysis['created_at']})"
+                    )
                     if analysis["status"] != "failed_upload":
                         mongo.insert_one(
                             "results",
@@ -66,6 +73,8 @@ def retrieval_queue():
                                 }
                             },
                         )
+                else:
+                    log(f"Analysis {analysis['_id']} has not completed yet. Skipping.")
         except Exception as e:
             log(f"Failed to retrieve analysis results from expanse: {e}")
 
