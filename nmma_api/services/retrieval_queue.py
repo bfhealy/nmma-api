@@ -58,7 +58,9 @@ def retrieval_queue():
                             {
                                 "$set": {
                                     "status": "failed_upload",
-                                    "nb_upload_failures": analysis["nb_upload_failures"]
+                                    "nb_upload_failures": analysis.get(
+                                        "nb_upload_failures", 0
+                                    )
                                     + 1,
                                     "upload_error": error,
                                 }
