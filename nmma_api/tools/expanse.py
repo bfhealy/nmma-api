@@ -73,6 +73,7 @@ def validate_credentials() -> bool:
 def submit(analyses: list[dict], **kwargs) -> bool:
     """Submit an analysis to expanse."""
 
+    log(f"Submitting {len(analyses)} analysis requests to expanse")
     # get structure of analyses dict
     for data_dict in analyses:
         analysis_parameters = data_dict["inputs"].get("analysis_parameters", {})
@@ -162,6 +163,10 @@ def retrieve(analysis: dict) -> dict:
     # copy the results to the local directory
     # update the database
     # return the results
+
+    log(
+        f"Retrieving results for analysis {analysis['_id']} ({analysis['resource_id']}, {analysis['created_at']})"
+    )
 
     LABEL = f"{analysis['resource_id']}_{analysis['created_at']}"
     os.makedirs(os.path.join(local_output_dir, LABEL), exist_ok=True)
