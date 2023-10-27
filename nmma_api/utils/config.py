@@ -44,8 +44,8 @@ def recursive_update_env(d, top_key=None):
             if env_key in os.environ:
                 try:
                     d[k] = literal_eval(str(os.environ[env_key]))
-                except ValueError:
-                    d[k] = os.environ[env_key]
+                except Exception:
+                    d[k] = str(os.environ[env_key])
 
 
 def relative_to(path, root):
