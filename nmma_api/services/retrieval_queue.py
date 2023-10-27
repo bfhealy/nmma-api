@@ -30,9 +30,7 @@ def retrieval_queue():
             )
             for analysis in analysis_requests:
                 if (
-                    datetime.strptime(
-                        analysis["invalid_after"], "%Y-%m-%d %H:%M:%S.%fZ"
-                    )
+                    datetime.strptime(analysis["invalid_after"], "%Y-%m-%d %H:%M:%S.%f")
                     < datetime.utcnow()
                 ):
                     log(
