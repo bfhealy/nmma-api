@@ -1,4 +1,5 @@
 import os
+import gzip
 import json
 import traceback
 from datetime import datetime
@@ -27,6 +28,9 @@ def validate(data: dict) -> str:
     if len(missing_keys) > 0:
         return f"missing required key(s) {missing_keys} in data_dict"
 
+    if "inputs" not in data:
+        return "missing inputs key in data_dict"
+
     model = data["inputs"].get("analysis_parameters", {}).get("source", None)
     if model is None:
         return "model not specified in data_dict.inputs.analysis_parameters"
@@ -36,6 +40,22 @@ def validate(data: dict) -> str:
         )
 
     return None
+
+
+def mongify(data: dict) -> dict:
+    """Gzip the photometry/redshift data and drop None or empty fields to save space in the database."""
+    data["inputs"]["photometry"] = gzip.compress(
+        str(data["inputs"]["photometry"]).encode()
+    )
+    data["inputs"]["redshift"] = gzip.compress(str(data["inputs"]["redshift"]).encode())
+    data = {
+        k: v
+        for k, v in data.items()
+        if v not in [None, ""]
+        and not (isinstance(v, list) and len(v) == 0)
+        and not (isinstance(v, dict) and len(v) == 0)
+    }
+    return data
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -76,6 +96,7 @@ class MainHandler(tornado.web.RequestHandler):
             "status": "pending",
             "created_at": datetime.timestamp(datetime.utcnow()),
         }
+        data = mongify(data)
         mongo.insert_one("analysis", data)
 
         return self.write(

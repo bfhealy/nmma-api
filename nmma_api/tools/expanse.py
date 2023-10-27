@@ -1,18 +1,19 @@
-# This is where you can help the most Brian!
+import base64
+import gzip
+import json
+import os
+import tempfile
+import warnings
+
+import arviz as az
+import joblib
+import numpy as np
+from astropy.table import Table
+from astropy.time import Time
+from paramiko.client import SSHClient, AutoAddPolicy
 
 from nmma_api.utils.logs import make_log
 from nmma_api.utils.config import load_config
-from paramiko.client import SSHClient, AutoAddPolicy
-from astropy.table import Table
-from astropy.time import Time
-import numpy as np
-import os
-import warnings
-import arviz as az
-import tempfile
-import base64
-import json
-import joblib
 
 
 config = load_config()
@@ -99,8 +100,15 @@ def submit(analyses: list[dict], **kwargs) -> bool:
         rez = {"status": "failure", "message": "", "analysis": {}}
 
         try:
-            data = Table.read(data_dict["inputs"]["photometry"], format="ascii.csv")
-            redshift = Table.read(data_dict["inputs"]["redshift"], format="ascii.csv")
+            # first, decompress the data
+            data_decompressed = gzip.decompress(
+                data_dict["inputs"]["photometry"]
+            ).decode()
+            redshift_decompressed = gzip.decompress(
+                data_dict["inputs"]["redshift"]
+            ).decode()
+            data = Table.read(data_decompressed, format="ascii.csv")
+            redshift = Table.read(redshift_decompressed, format="ascii.csv")
             z = redshift["redshift"][0]  # noqa F841
         except Exception as e:
             rez.update(
