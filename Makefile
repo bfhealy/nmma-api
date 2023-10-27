@@ -9,6 +9,10 @@ SUPERVISORD_CFG=nmma_api/services/supervisor.conf
 SUPERVISORD=$(PYTHON) -m supervisor.supervisord -s -c $(SUPERVISORD_CFG)
 SUPERVISORCTL=$(PYTHON) -m supervisor.supervisorctl -c $(SUPERVISORD_CFG)
 
+SUPERVISORD_HEROKU_CFG=nmma_api/services/supervisor_heroku.conf
+SUPERVISORD_HEROKU=$(PYTHON) -m supervisor.supervisord -s -c $(SUPERVISORD_HEROKU_CFG)
+SUPERVISORCTL_HEROKU=$(PYTHON) -m supervisor.supervisorctl -c $(SUPERVISORD_HEROKU_CFG)
+
 # Bold
 B=\033[1m
 # Normal
@@ -33,6 +37,9 @@ run: paths dependencies summary validate_expanse_connection ## Run the server in
 
 run_production: paths summary validate_expanse_connection ## Run the server in production mode
 	$(SUPERVISORD)
+
+run_heroku: paths summary validate_expanse_connection ## Run the server in production mode, with logs to stdout for Heroku
+	$(SUPERVISORD_HEROKU)
 
 stop: ## Stop the server
 	$(SUPERVISORCTL) stop all

@@ -2,4 +2,4 @@ build:
   docker:
     nmma-api: Dockerfile
 run:
-  nmma-api: make run_production
+  nmma-api: make run_heroku
