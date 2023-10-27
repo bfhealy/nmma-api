@@ -27,13 +27,13 @@ def retrieval_queue():
                 f"Found {len(analysis_requests)} analysis requests to retrieve/process."
             )
             for analysis in analysis_requests:
-                if (
-                    analysis["status"] == "failed_upload"
-                    and analysis.get("nb_upload_failures", 0) >= 10
-                ):
+                if analysis["status"] == "failed_upload" and analysis.get(
+                    "nb_upload_failures", 0
+                ) >= config["wait_times"].get("max_upload_failures", 10):
                     log(
-                        f"Analysis {analysis['_id']} has failed to upload 10 times. Skipping."
+                        f"Analysis {analysis['_id']} has failed to upload 10 times. Skipping and deleting the results."
                     )
+                    mongo.db.results.delete_one({"analysis_id": analysis["_id"]})
                     continue
                 if analysis["status"] == "running":
                     results = retrieve(analysis)
@@ -59,6 +59,8 @@ def retrieval_queue():
                             {"_id": analysis["_id"]},
                             {"$set": {"status": "completed"}},
                         )
+                        # delete the results from the database
+                        mongo.db.results.delete_one({"analysis_id": analysis["_id"]})
                     else:
                         mongo.db.analysis.update_one(
                             {"_id": analysis["_id"]},

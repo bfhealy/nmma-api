@@ -33,3 +33,4 @@ ports:
 wait_times:
   submission: 60
   retrieval: 60
+  max_upload_failures: 10
