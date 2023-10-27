@@ -22,6 +22,27 @@ def recursive_update(d, u):
     return d
 
 
+def recursive_update_env(d, top_key=None):
+    # go through each key in the config, and for each check if there is a corresponding environment variable
+    # example:
+    #   config: {'app': {'db': 'mongodb://localhost:27017'}}
+    #   environment: export app.db=mongodb://localhost:27018
+    #   result: {'app': {'db': 'mongodb://localhost:27018'}}
+    for k, v in d.items():
+        if isinstance(v, collections.Mapping):
+            recursive_update_env(
+                v,
+                top_key=f"{top_key}_{k}".upper() if top_key is not None else k.upper(),
+            )
+        else:
+            if top_key is not None:
+                env_key = f"{top_key}_{k}".upper()
+            else:
+                env_key = k.upper()
+            if env_key in os.environ:
+                d[k] = os.environ[env_key]
+
+
 def relative_to(path, root):
     p = Path(path)
     try:
@@ -59,6 +80,7 @@ class Config(dict):
         if os.path.isfile(filename):
             more_cfg = yaml.full_load(open(filename))
             recursive_update(self, more_cfg)
+            recursive_update_env(self)
 
     def __getitem__(self, key):
         keys = key.split(".")

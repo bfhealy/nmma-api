@@ -20,7 +20,7 @@ paths:
 	@mkdir -p run
 
 dependencies: ## Install dependencies
-	$(PYTHON) -m pip install -r requirements.txt
+	$(PYTHON) -m pip install -r requirements.txt --progress-bar off
 
 validate_expanse_connection:
 	$(PYTHON) nmma_api/tools/expanse.py
