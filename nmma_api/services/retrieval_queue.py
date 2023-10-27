@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 
-from nmma_api.tools.expanse import retrieve
+from nmma_api.tools.expanse import retrieve, cancel_job
 from nmma_api.tools.webhook import upload_analysis_results
 from nmma_api.utils.config import load_config
 from nmma_api.utils.logs import make_log
@@ -41,6 +41,7 @@ def retrieval_queue():
                     datetime.strptime(analysis["invalid_after"], "%Y-%m-%d %H:%M:%S.%f")
                     < datetime.utcnow()
                 ):
+                    cancel_job(analysis.get("job_id", None))
                     log(
                         f"Analysis {analysis['_id']} webhook has expired. Skipping and deleting the results if they exist."
                     )

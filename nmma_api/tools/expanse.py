@@ -276,6 +276,26 @@ def retrieve(analysis: dict) -> dict:
     return results
 
 
+def cancel_job(job_id: int) -> bool:
+    """Cancel a job on expanse."""
+    if job_id is None:
+        return False
+    try:
+        _, stdout, stderr = expanse.client.exec_command(f"scancel {job_id}")
+        # TODO: verify that the cancel error is in that format
+        cancel_error = stderr.read().decode("utf-8").strip()
+
+        if cancel_error != "":
+            warnings.warn(f"Cancel error: {cancel_error}")
+            raise ValueError(f"Cancel error: {cancel_error}")
+        else:
+            log(f"Cancelled job {job_id}")
+    except Exception as e:
+        log(f"Failed to cancel job {job_id} on expanse: {e}")
+        return False
+    return True
+
+
 if __name__ == "__main__":
     valid = validate_credentials()
     if not valid:
