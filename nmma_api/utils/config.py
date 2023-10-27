@@ -3,6 +3,8 @@ import yaml
 from pathlib import Path
 import os
 
+# use literal_eval to convert strings to python objects (e.g. True, False, None)
+from ast import literal_eval
 from nmma_api.utils.logs import make_log
 
 log = make_log("config")
@@ -40,7 +42,10 @@ def recursive_update_env(d, top_key=None):
             else:
                 env_key = k.upper()
             if env_key in os.environ:
-                d[k] = os.environ[env_key]
+                try:
+                    d[k] = literal_eval(str(os.environ[env_key]))
+                except ValueError:
+                    d[k] = os.environ[env_key]
 
 
 def relative_to(path, root):
@@ -111,7 +116,7 @@ class Config(dict):
 
             if isinstance(self[key], dict):
                 for key, val in self[key].items():
-                    print("  ", key.ljust(30), val)
+                    print("  ", key.ljust(30), str(val).ljust(30), type(val))
 
         print("=" * 78)
 
@@ -140,3 +145,8 @@ def load_config(config_files=["config.yaml"]):
         _cache.update({"cfg": cfg})
 
     return _cache["cfg"]
+
+
+if __name__ == "__main__":
+    cfg = load_config()
+    cfg.show()

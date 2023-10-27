@@ -22,13 +22,16 @@ paths:
 dependencies: ## Install dependencies
 	$(PYTHON) -m pip install -r requirements.txt --progress-bar off
 
+summary:
+	$(PYTHON) nmma_api/utils/config.py
+
 validate_expanse_connection:
 	$(PYTHON) nmma_api/tools/expanse.py
 
-run: paths dependencies validate_expanse_connection ## Run the server in development mode
+run: paths dependencies summary validate_expanse_connection ## Run the server in development mode
 	$(SUPERVISORD)
 
-run_production: paths validate_expanse_connection ## Run the server in production mode
+run_production: paths summary validate_expanse_connection ## Run the server in production mode
 	$(SUPERVISORD)
 
 stop: ## Stop the server
