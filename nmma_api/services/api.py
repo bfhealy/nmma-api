@@ -1,3 +1,4 @@
+import os
 import json
 import traceback
 from datetime import datetime
@@ -122,7 +123,11 @@ def make_app():
 if __name__ == "__main__":
     init_db(config)
     app = make_app()
-    port = config["ports"]["api"]
+    if os.environ.get("USE_HEROKU") == str(1):
+        port = int(os.environ.get("PORT"))
+        log(f"Using Heroku's assigned port: {port}")
+    else:
+        port = config["ports"]["api"]
     app.listen(port)
     log(f"NMMA Service Listening on port {port}")
     tornado.ioloop.IOLoop.current().start()
