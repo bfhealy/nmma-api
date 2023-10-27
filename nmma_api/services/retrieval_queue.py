@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 
 from nmma_api.tools.expanse import retrieve
 from nmma_api.tools.webhook import upload_analysis_results
@@ -28,6 +29,25 @@ def retrieval_queue():
                 f"Found {len(analysis_requests)} analysis requests to retrieve/process."
             )
             for analysis in analysis_requests:
+                if (
+                    datetime.strptime(
+                        analysis["invalid_after"], "%Y-%m-%d %H:%M:%S.%fZ"
+                    )
+                    < datetime.utcnow()
+                ):
+                    log(
+                        f"Analysis {analysis['_id']} webhook has expired. Skipping and deleting the results if they exist."
+                    )
+                    mongo.db.analysis.update_one(
+                        {"_id": analysis["_id"]},
+                        {"$set": {"status": "expired"}},
+                    )
+                    try:
+                        mongo.db.results.delete_one({"analysis_id": analysis["_id"]})
+                    except Exception:
+                        pass
+                    continue
+
                 if (
                     analysis["status"] == "retry_upload"
                     and analysis.get("nb_upload_failures", 0) >= max_upload_failures
