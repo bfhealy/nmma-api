@@ -35,7 +35,6 @@ def submission_queue():
                         {
                             "$set": {
                                 "status": "running",
-                                "error": None,
                                 "job_id": job_id,
                             }
                         },
