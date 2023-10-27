@@ -5,7 +5,7 @@ from nmma_api.utils.config import load_config
 from nmma_api.utils.logs import make_log
 from nmma_api.utils.mongo import Mongo
 
-log = make_log("queue")
+log = make_log("submission_queue")
 
 config = load_config()
 
