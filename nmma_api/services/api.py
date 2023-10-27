@@ -114,6 +114,7 @@ def make_app():
         [
             (r"/analysis", MainHandler),
             (r"/health", HealthHandler),
+            (r"/", HealthHandler),
         ]
     )
 
