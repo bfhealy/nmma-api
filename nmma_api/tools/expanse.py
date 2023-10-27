@@ -164,7 +164,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 warnings.warn(f"Submission error: {submit_error}")
                 raise ValueError(f"Submission error: {submit_error}")
             else:
-                job_id = submit_message.split(" ")[-1].strip()
+                job_id = int(submit_message.split(" ")[-1].strip())
                 jobs[data_dict["_id"]] = {"job_id": job_id, "message": ""}
                 log(f"Submitted job {job_id} for analysis {data_dict['_id']}")
         except Exception as e:
