@@ -25,12 +25,32 @@ def submission_queue():
             if len(analysis_requests) == 0:
                 time.sleep(submission_wait_time)
                 continue
-            submit(analysis_requests)
+            jobs = submit(analysis_requests)
             for analysis_request in analysis_requests:
-                mongo.db.analysis.update_one(
-                    {"_id": analysis_request["_id"]},
-                    {"$set": {"status": "running"}},
-                )
+                job_id = jobs.get(analysis_request["_id"], {}).get("job_id")
+                error = jobs.get(analysis_request["_id"], {}).get("error", "")
+                if job_id is not None:
+                    mongo.db.analysis.update_one(
+                        {"_id": analysis_request["_id"]},
+                        {
+                            "$set": {
+                                "status": "running",
+                                "error": None,
+                                "job_id": job_id,
+                            }
+                        },
+                    )
+                else:
+                    mongo.db.analysis.update_one(
+                        {"_id": analysis_request["_id"]},
+                        {
+                            "$set": {
+                                "status": "failed_submission_to_upload",
+                                "error": error,
+                                "job_id": None,
+                            }
+                        },
+                    )
         except Exception as e:
             log(f"Failed to submit analysis requests to expanse: {e}")
 

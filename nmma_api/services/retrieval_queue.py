@@ -22,7 +22,15 @@ def retrieval_queue():
         try:
             # get the analysis requests that have been processed
             analysis_requests = mongo.db.analysis.find(
-                {"status": {"$in": ["running", "retry_upload"]}}
+                {
+                    "status": {
+                        "$in": [
+                            "running",
+                            "retry_upload",
+                            "failed_submission_to_upload",
+                        ]
+                    }
+                }
             )
             analysis_requests = [x for x in analysis_requests]
             log(
@@ -44,6 +52,23 @@ def retrieval_queue():
                         mongo.db.results.delete_one({"analysis_id": analysis["_id"]})
                     except Exception:
                         pass
+                    continue
+
+                if analysis["status"] == "failed_submission_to_upload":
+                    log(
+                        f"Analysis {analysis['_id']} failed to submit to expanse. Updating status upstream."
+                    )
+                    results = {
+                        "status": "failure",
+                        "message": analysis.get("error", "unknown error"),
+                    }
+                    upload_analysis_results(
+                        results, analysis
+                    )  # for a failure, we don't bother with retries
+                    mongo.db.analysis.update_one(
+                        {"_id": analysis["_id"]},
+                        {"$set": {"status": "failed_submission"}},
+                    )
                     continue
 
                 if (

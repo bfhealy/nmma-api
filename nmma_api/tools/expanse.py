@@ -73,95 +73,104 @@ def validate_credentials() -> bool:
 
 def submit(analyses: list[dict], **kwargs) -> bool:
     """Submit an analysis to expanse."""
-
+    jobs = {}
     log(f"Submitting {len(analyses)} analysis requests to expanse")
-    # get structure of analyses dict
+
     for data_dict in analyses:
-        analysis_parameters = data_dict["inputs"].get("analysis_parameters", {})
-        timestamp = data_dict.get("created_at", None)
-
-        MODEL = analysis_parameters.get("source")
-        resource_id = data_dict.get("resource_id", "")
-        LABEL = f"{resource_id}_{timestamp}"
-        TMIN = analysis_parameters.get("tmin")
-        TMAX = analysis_parameters.get("tmax")
-        DT = analysis_parameters.get("dt")
-
-        # this example analysis service expects the photometry to be in
-        # a csv file (at data_dict["inputs"]["photometry"]) with the following columns
-        # - filter: the name of the bandpass
-        # - mjd: the modified Julian date of the observation
-        # - magsys: the mag system (e.g. ab) of the observations
-        # - flux: the flux of the observation
-        #
-        # the following code transforms these inputs from SkyPortal
-        # to the format expected by nmma.
-        #
-        rez = {"status": "failure", "message": "", "analysis": {}}
-
         try:
-            # first, decompress the data
-            data_decompressed = gzip.decompress(
-                data_dict["inputs"]["photometry"]
-            ).decode()
-            redshift_decompressed = gzip.decompress(
-                data_dict["inputs"]["redshift"]
-            ).decode()
-            data = Table.read(data_decompressed, format="ascii.csv")
-            redshift = Table.read(redshift_decompressed, format="ascii.csv")
-            z = redshift["redshift"][0]  # noqa F841
+            try:
+                analysis_parameters = data_dict["inputs"].get("analysis_parameters", {})
+                timestamp = data_dict.get("created_at", None)
+
+                MODEL = analysis_parameters.get("source")
+                resource_id = data_dict.get("resource_id", "")
+                LABEL = f"{resource_id}_{timestamp}"
+                TMIN = analysis_parameters.get("tmin")
+                TMAX = analysis_parameters.get("tmax")
+                DT = analysis_parameters.get("dt")
+
+                # this example analysis service expects the photometry to be in
+                # a csv file (at data_dict["inputs"]["photometry"]) with the following columns
+                # - filter: the name of the bandpass
+                # - mjd: the modified Julian date of the observation
+                # - magsys: the mag system (e.g. ab) of the observations
+                # - flux: the flux of the observation
+                #
+                # the following code transforms these inputs from SkyPortal
+                # to the format expected by nmma.
+                #
+
+                # first, decompress the data
+                data_decompressed = gzip.decompress(
+                    data_dict["inputs"]["photometry"]
+                ).decode()
+                redshift_decompressed = gzip.decompress(
+                    data_dict["inputs"]["redshift"]
+                ).decode()
+                data = Table.read(data_decompressed, format="ascii.csv")
+                redshift = Table.read(redshift_decompressed, format="ascii.csv")
+                z = redshift["redshift"][0]  # noqa F841
+            except Exception as e:
+                raise ValueError(f"input data is not in the expected format {e}")
+
+            try:
+                # Set trigger time based on first detection
+                TT = np.min(data[data["mag"] != np.ma.masked]["mjd"])
+
+                # Give each source a different filename. This file will be copied to Expanse.
+                filename = f"{resource_id}_{timestamp}.dat"
+                os.makedirs(local_data_dir, exist_ok=True)
+
+                local_data_path = os.path.join(local_data_dir, filename)
+                with open(local_data_path, "w") as f:
+                    # output the data in the format desired by NMMA:
+                    # remove rows where mag and magerr are missing, or not float, or negative
+                    data = data[
+                        np.isfinite(data["mag"])
+                        & np.isfinite(data["magerr"])
+                        & (data["mag"] > 0)
+                        & (data["magerr"] > 0)
+                    ]
+                    for row in data:
+                        tt = Time(row["mjd"], format="mjd").isot
+                        filt = row["filter"]
+                        mag = row["mag"]
+                        magerr = row["magerr"]
+                        f.write(f"{tt} {filt} {mag} {magerr}\n")
+            except Exception as e:
+                raise ValueError(f"failed to format data {e}")
+
+            try:
+                expanse.client.exec_command(f"mkdir {expanse_data_dir}")
+
+                expanse_data_path = os.path.join(expanse_data_dir, filename)
+
+                sftp = expanse.client.open_sftp()
+                sftp.put(local_data_path, expanse_data_path)
+                sftp.close()
+
+                DATA = expanse_data_path
+
+                _, stdout, stderr = expanse.client.exec_command(
+                    f"cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT} {slurm_script_name}"
+                )
+            except Exception as e:
+                raise ValueError(f"failed to submit job {e}")
+
+            submit_message = stdout.read().decode("utf-8").strip()
+            submit_error = stderr.read().decode("utf-8").strip()
+
+            if submit_error != "":
+                warnings.warn(f"Submission error: {submit_error}")
+                raise ValueError(f"Submission error: {submit_error}")
+            else:
+                job_id = submit_message.split(" ")[-1].strip()
+                jobs[data_dict["_id"]] = {"job_id": job_id, "message": ""}
+                log(f"Submitted job {job_id} for analysis {data_dict['_id']}")
         except Exception as e:
-            rez.update(
-                {
-                    "status": "failure",
-                    "message": f"input data is not in the expected format {e}",
-                }
-            )
-            return rez
-
-        # Set trigger time based on first detection
-        TT = np.min(data[data["mag"] != np.ma.masked]["mjd"])
-
-        # Give each source a different filename. This file will be copied to Expanse.
-        filename = f"{resource_id}_{timestamp}.dat"
-        os.makedirs(local_data_dir, exist_ok=True)
-
-        local_data_path = os.path.join(local_data_dir, filename)
-        with open(local_data_path, "w") as f:
-            # output the data in the format desired by NMMA:
-            # remove rows where mag and magerr are missing, or not float, or negative
-            data = data[
-                np.isfinite(data["mag"])
-                & np.isfinite(data["magerr"])
-                & (data["mag"] > 0)
-                & (data["magerr"] > 0)
-            ]
-            for row in data:
-                tt = Time(row["mjd"], format="mjd").isot
-                filt = row["filter"]
-                mag = row["mag"]
-                magerr = row["magerr"]
-                f.write(f"{tt} {filt} {mag} {magerr}\n")
-
-        expanse.client.exec_command(f"mkdir {expanse_data_dir}")
-
-        expanse_data_path = os.path.join(expanse_data_dir, filename)
-
-        sftp = expanse.client.open_sftp()
-        sftp.put(local_data_path, expanse_data_path)
-        sftp.close()
-
-        DATA = expanse_data_path
-
-        _, stdout, stderr = expanse.client.exec_command(
-            f"cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT} {slurm_script_name}"
-        )
-        print(stdout.read().decode("utf-8"))
-        submit_error = stderr.read().decode("utf-8")
-        if submit_error != "":
-            warnings.warn(f"Submission error: {submit_error}")
-
-    return True
+            log(f"Failed to submit analysis {data_dict['_id']} to expanse: {e}")
+            jobs[data_dict["_id"]] = {"job_id": None, "message": str(e)}
+    return jobs
 
 
 def retrieve(analysis: dict) -> dict:
