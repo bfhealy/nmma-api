@@ -12,6 +12,7 @@ config = load_config()
 
 mongo = Mongo(**config["database"])
 retrieval_wait_time = config["wait_times"]["retrieval"]
+max_upload_failures = config["wait_times"].get("max_upload_failures", 10)
 
 
 def retrieval_queue():
@@ -20,21 +21,27 @@ def retrieval_queue():
         try:
             # get the analysis requests that have been processed
             analysis_requests = mongo.db.analysis.find(
-                {"status": {"$in": ["running", "failed_upload"]}}
+                {"status": {"$in": ["running", "retry_upload"]}}
             )
             analysis_requests = [x for x in analysis_requests]
             log(
                 f"Found {len(analysis_requests)} analysis requests to retrieve/process."
             )
             for analysis in analysis_requests:
-                if analysis["status"] == "failed_upload" and analysis.get(
-                    "nb_upload_failures", 0
-                ) >= config["wait_times"].get("max_upload_failures", 10):
+                if (
+                    analysis["status"] == "retry_upload"
+                    and analysis.get("nb_upload_failures", 0) >= max_upload_failures
+                ):
                     log(
                         f"Analysis {analysis['_id']} has failed to upload 10 times. Skipping and deleting the results."
                     )
+                    mongo.db.analysis.update_one(
+                        {"_id": analysis["_id"]},
+                        {"$set": {"status": "failed_upload"}},
+                    )
                     mongo.db.results.delete_one({"analysis_id": analysis["_id"]})
                     continue
+
                 if analysis["status"] == "running":
                     results = retrieve(analysis)
                 else:
@@ -44,15 +51,18 @@ def retrieval_queue():
                         )["results"]
                     except Exception:
                         results = retrieve(analysis)
+
                 if results is not None:
                     log(
                         f"Uploading results to webhook for analysis {analysis['_id']} ({analysis['resource_id']}, {analysis['created_at']})"
                     )
-                    if analysis["status"] != "failed_upload":
+
+                    if analysis["status"] == "running":
                         mongo.insert_one(
                             "results",
                             {"analysis_id": analysis["_id"], "results": results},
                         )
+
                     uploaded, error = upload_analysis_results(results, analysis)
                     if uploaded:
                         mongo.db.analysis.update_one(
@@ -66,7 +76,7 @@ def retrieval_queue():
                             {"_id": analysis["_id"]},
                             {
                                 "$set": {
-                                    "status": "failed_upload",
+                                    "status": "retry_upload",
                                     "nb_upload_failures": analysis.get(
                                         "nb_upload_failures", 0
                                     )
