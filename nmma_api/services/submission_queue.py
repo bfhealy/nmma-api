@@ -20,6 +20,11 @@ def submission_queue():
         try:
             # get the analysis requests that haven't been processed yet
             analysis_cursor = mongo.db.analysis.find({"status": "pending"})
+
+            # Option A: submit jobs marked as "pending" or "expired"
+            # analysis_cursor = mongo.db.analysis.find({"status": ["pending", "expired"]})
+            # Then, change "expired" jobs to some other status below
+
             analysis_requests = [x for x in analysis_cursor]
             log(f"Found {len(analysis_requests)} analysis requests to submit.")
             if len(analysis_requests) == 0:
