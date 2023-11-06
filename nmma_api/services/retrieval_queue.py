@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 
-from nmma_api.tools.expanse import retrieve, cancel_job
+from nmma_api.tools.expanse import retrieve, cancel_job, submit  # noqa 401
 from nmma_api.tools.webhook import upload_analysis_results
 from nmma_api.utils.config import load_config
 from nmma_api.utils.logs import make_log
@@ -49,6 +49,11 @@ def retrieval_queue():
                         {"_id": analysis["_id"]},
                         {"$set": {"status": "expired"}},
                     )
+
+                    # Option B: immediately resubmit expired analyses to make plots
+                    # submit(analysis)
+                    # Modify deletion code below
+
                     try:
                         mongo.db.results.delete_one({"analysis_id": analysis["_id"]})
                     except Exception:
