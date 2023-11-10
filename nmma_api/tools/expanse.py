@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import warnings
+from datetime import datetime
 
 import arviz as az
 import joblib
@@ -90,7 +91,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 TMAX = analysis_parameters.get("tmax")
                 DT = analysis_parameters.get("dt")
                 SKIP_SAMPLING = ""
-                if status == "expired":
+                if status == "job_expired":
                     SKIP_SAMPLING = "--skip-sampling"
 
                 # this example analysis service expects the photometry to be in
@@ -169,7 +170,11 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 raise ValueError(f"Submission error: {submit_error}")
             else:
                 job_id = int(submit_message.split(" ")[-1].strip())
-                jobs[data_dict["_id"]] = {"job_id": job_id, "message": ""}
+                jobs[data_dict["_id"]] = {
+                    "job_id": job_id,
+                    "message": "",
+                    "submitted_at": datetime.timestamp(datetime.utcnow()),
+                }
                 log(f"Submitted job {job_id} for analysis {data_dict['_id']}")
         except Exception as e:
             log(f"Failed to submit analysis {data_dict['_id']} to expanse: {e}")

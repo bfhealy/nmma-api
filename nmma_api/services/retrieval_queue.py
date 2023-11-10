@@ -14,6 +14,12 @@ config = load_config()
 mongo = Mongo(**config["database"])
 retrieval_wait_time = config["wait_times"]["retrieval"]
 max_upload_failures = config["wait_times"].get("max_upload_failures", 10)
+time_limit = config["expansion"].get("time_limit", 6) * 3600  # in seconds
+
+if time_limit > 24 * 3600:
+    raise ValueError("time_limit cannot be greater than 24 hours")
+if time_limit < 3600:
+    raise ValueError("time_limit cannot be less than 1 hour")
 
 
 def retrieval_queue():
@@ -25,9 +31,10 @@ def retrieval_queue():
                 {
                     "status": {
                         "$in": [
-                            "running",
-                            "retry_upload",
-                            "failed_submission_to_upload",
+                            "running",  # analysis is running on expanse
+                            "running_plot",  # analysis ran for too long, plot are being generated from checkpoints
+                            "retry_upload",  # analysis has been retrieved but failed to upload back to the webhook
+                            "failed_submission_to_upload",  # analysis failed to submit to expanse (didn't start at all)
                         ]
                     }
                 }
@@ -37,6 +44,7 @@ def retrieval_queue():
                 f"Found {len(analysis_requests)} analysis requests to retrieve/process."
             )
             for analysis in analysis_requests:
+                # webhook has expired, can't upload results upstream anymore
                 if (
                     datetime.strptime(analysis["invalid_after"], "%Y-%m-%d %H:%M:%S.%f")
                     < datetime.utcnow()
@@ -47,12 +55,8 @@ def retrieval_queue():
                     )
                     mongo.db.analysis.update_one(
                         {"_id": analysis["_id"]},
-                        {"$set": {"status": "expired"}},
+                        {"$set": {"status": "webhook_expired"}},
                     )
-
-                    # Option B: immediately resubmit expired analyses to make plots
-                    # submit(analysis)
-                    # Modify deletion code below
 
                     try:
                         mongo.db.results.delete_one({"analysis_id": analysis["_id"]})
@@ -60,6 +64,22 @@ def retrieval_queue():
                         pass
                     continue
 
+                # analysis has been running for too long, cancel the job and set the status to job_expired
+                # the submission queue will take of starting the plot generation job
+                # and setting the status to "running_plot"
+                if analysis["status"] == "running" and analysis.get(
+                    "submitted_at"
+                ) + time_limit < datetime.timestamp(datetime.utcnow()):
+                    log(
+                        f"Analysis {analysis['_id']} has been pending for too long. Cancelling the job and starting plot generation job."
+                    )
+                    cancel_job(analysis.get("job_id", None))
+                    mongo.db.analysis.update_one(
+                        {"_id": analysis["_id"]},
+                        {"$set": {"status": "job_expired"}},
+                    )
+
+                # analysis failed to submit to expanse, update the status upstream
                 if analysis["status"] == "failed_submission_to_upload":
                     log(
                         f"Analysis {analysis['_id']} failed to submit to expanse. Updating status upstream."
@@ -77,6 +97,27 @@ def retrieval_queue():
                     )
                     continue
 
+                # an edge case, but the plots have been generating for too long, we cancel the job, set it to failed
+                # and upload that failure status upstream
+                if analysis["status"] == "running_plot" and analysis.get(
+                    "submitted_at"
+                ) + time_limit < datetime.timestamp(datetime.utcnow()):
+                    log(
+                        f"Analysis {analysis['_id']} plot generation has been running for too long. Cancelling the job and setting it to failed."
+                    )
+                    cancel_job(analysis.get("job_id", None))
+                    results = {
+                        "status": "failure",
+                        "message": "analysis ran for too long, and failed to generate plots",
+                    }
+                    upload_analysis_results(results, analysis)
+                    mongo.db.analysis.update_one(
+                        {"_id": analysis["_id"]},
+                        {"$set": {"status": "failed_plot"}},
+                    )
+                    continue
+
+                # analysis has failed to upload upstream 10 times, delete the results and skip
                 if (
                     analysis["status"] == "retry_upload"
                     and analysis.get("nb_upload_failures", 0) >= max_upload_failures
@@ -91,7 +132,8 @@ def retrieval_queue():
                     mongo.db.results.delete_one({"analysis_id": analysis["_id"]})
                     continue
 
-                if analysis["status"] == "running":
+                # analysis or plot generation is running, try to retrieve the results if finished
+                if analysis["status"] in ["running", "running_plot"]:
                     results = retrieve(analysis)
                 else:
                     try:
