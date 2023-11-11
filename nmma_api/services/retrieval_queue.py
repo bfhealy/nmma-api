@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 
-from nmma_api.tools.expanse import retrieve, cancel_job, submit  # noqa 401
+from nmma_api.tools.expanse import retrieve, cancel_job  # noqa 401
 from nmma_api.tools.webhook import upload_analysis_results
 from nmma_api.utils.config import load_config
 from nmma_api.utils.logs import make_log
@@ -14,7 +14,7 @@ config = load_config()
 mongo = Mongo(**config["database"])
 retrieval_wait_time = config["wait_times"]["retrieval"]
 max_upload_failures = config["wait_times"].get("max_upload_failures", 10)
-time_limit = config["expansion"].get("time_limit", 6) * 3600  # in seconds
+time_limit = config["expanse"].get("time_limit", 6) * 3600  # in seconds
 
 if time_limit > 24 * 3600:
     raise ValueError("time_limit cannot be greater than 24 hours")
