@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import warnings
+from datetime import datetime
 
 import arviz as az
 import joblib
@@ -81,6 +82,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
             try:
                 analysis_parameters = data_dict["inputs"].get("analysis_parameters", {})
                 timestamp = data_dict.get("created_at", None)
+                status = data_dict.get("status", None)
 
                 MODEL = analysis_parameters.get("source")
                 resource_id = data_dict.get("resource_id", "")
@@ -88,6 +90,9 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 TMIN = analysis_parameters.get("tmin")
                 TMAX = analysis_parameters.get("tmax")
                 DT = analysis_parameters.get("dt")
+                SKIP_SAMPLING = ""
+                if status == "job_expired":
+                    SKIP_SAMPLING = "--skip-sampling"
 
                 # this example analysis service expects the photometry to be in
                 # a csv file (at data_dict["inputs"]["photometry"]) with the following columns
@@ -152,7 +157,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 DATA = expanse_data_path
 
                 _, stdout, stderr = expanse.client.exec_command(
-                    f"cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT} {slurm_script_name}"
+                    f"cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT},SKIP_SAMPLING={SKIP_SAMPLING} {slurm_script_name}"
                 )
             except Exception as e:
                 raise ValueError(f"failed to submit job {e}")
@@ -165,7 +170,11 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 raise ValueError(f"Submission error: {submit_error}")
             else:
                 job_id = int(submit_message.split(" ")[-1].strip())
-                jobs[data_dict["_id"]] = {"job_id": job_id, "message": ""}
+                jobs[data_dict["_id"]] = {
+                    "job_id": job_id,
+                    "message": "",
+                    "submitted_at": datetime.timestamp(datetime.utcnow()),
+                }
                 log(f"Submitted job {job_id} for analysis {data_dict['_id']}")
         except Exception as e:
             log(f"Failed to submit analysis {data_dict['_id']} to expanse: {e}")

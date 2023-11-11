@@ -19,23 +19,31 @@ def submission_queue():
     while True:
         try:
             # get the analysis requests that haven't been processed yet
-            analysis_cursor = mongo.db.analysis.find({"status": "pending"})
+            analysis_cursor = mongo.db.analysis.find(
+                {"status": {"$in": ["pending", "job_expired"]}}
+            )
+
             analysis_requests = [x for x in analysis_cursor]
-            log(f"Found {len(analysis_requests)} analysis requests to submit.")
+            log(
+                f"Found {len(analysis_requests)} analysis requests to submit or resubmit."
+            )
             if len(analysis_requests) == 0:
                 time.sleep(submission_wait_time)
                 continue
             jobs = submit(analysis_requests)
             for analysis_request in analysis_requests:
-                job_id = jobs.get(analysis_request["_id"], {}).get("job_id")
+                job = jobs.get(analysis_request["_id"], {})
                 error = jobs.get(analysis_request["_id"], {}).get("error", "")
-                if job_id is not None:
+                if job.get("job_id") is not None:
                     mongo.db.analysis.update_one(
                         {"_id": analysis_request["_id"]},
                         {
                             "$set": {
-                                "status": "running",
-                                "job_id": job_id,
+                                "status": "running_plot"
+                                if analysis_request["status"] == "job_expired"
+                                else "running",
+                                "job_id": job.get("job_id"),
+                                "submitted_at": job.get("submitted_at"),
                             }
                         },
                     )

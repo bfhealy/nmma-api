@@ -20,6 +20,7 @@ expanse:
   nmma_dir:
   data_dirname:
   output_dirname:
+  time_limit: 6 # in hours
 
 local:
   nmma_dir:
