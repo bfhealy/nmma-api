@@ -245,6 +245,11 @@ def retrieve(analysis: dict) -> dict:
         with open(local_json_file) as f:
             result = json.load(f)
         log_bayes_factor = result["log_bayes_factor"]
+
+        # Remove some keys to maintain a reasonable results size
+        pop_list = ["samples", "nested_samples", "log_likelihood_evaluations"]
+        [result.pop(x) for x in pop_list]
+
         f = tempfile.NamedTemporaryFile(suffix=".png", prefix="nmmaplot_", delete=False)
         f.close()
 
