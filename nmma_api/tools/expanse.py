@@ -247,7 +247,7 @@ def retrieve(analysis: dict) -> dict:
         log_bayes_factor = result["log_bayes_factor"]
 
         # Remove some keys to maintain a reasonable results size
-        pop_list = ["samples", "nested_samples", "log_likelihood_evaluations"]
+        pop_list = ["samples", "nested_samples"]
         [result.pop(x) for x in pop_list]
 
         f = tempfile.NamedTemporaryFile(suffix=".png", prefix="nmmaplot_", delete=False)
