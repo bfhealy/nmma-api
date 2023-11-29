@@ -47,11 +47,16 @@ def validate(data: dict) -> str:
             and len(data["inputs"]["photometry"]) > 0
         ):
             temp = Table.read(data["inputs"]["photometry"], format="ascii.csv")
+            kept = 0
             for row in temp:
                 try:
                     row["filter"] = verify_and_match_filter(model, row["filter"])
                 except ValueError:
-                    return f"filter {row['filter']} not available for model {model}"
+                    continue
+                kept += 1
+            if len(kept) == 0:
+                return "no valid filters found in photometry data"
+
         else:
             return "photometry data must be a ascii csv string"
 

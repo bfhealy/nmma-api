@@ -137,12 +137,20 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                         & (data["mag"] > 0)
                         & (data["magerr"] > 0)
                     ]
+                    kept = 0
                     for row in data:
                         tt = Time(row["mjd"], format="mjd").isot
-                        filt = verify_and_match_filter(MODEL, row["filter"])
+                        try:
+                            filt = verify_and_match_filter(MODEL, row["filter"])
+                        except ValueError:
+                            continue
                         mag = row["mag"]
                         magerr = row["magerr"]
                         f.write(f"{tt} {filt} {mag} {magerr}\n")
+                        kept += 1
+
+                    if kept == 0:
+                        raise ValueError("no valid filters found in photometry data")
             except Exception as e:
                 raise ValueError(f"failed to format data {e}")
 
