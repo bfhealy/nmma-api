@@ -5,5 +5,6 @@ run
 env
 
 config.yaml
+models.yaml
 
 .DS_Store

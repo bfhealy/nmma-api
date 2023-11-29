@@ -3,6 +3,7 @@ import gzip
 import json
 import traceback
 from datetime import datetime
+from astropy.table import Table
 
 import tornado.escape
 import tornado.web
@@ -11,6 +12,7 @@ from nmma_api.utils.config import load_config
 from nmma_api.utils.logs import make_log
 from nmma_api.utils.mongo import Mongo, init_db
 from nmma_api.tools.expanse import validate_credentials
+from nmma_api.tools.enums import verify_and_match_filter
 
 log = make_log("main")
 
@@ -38,6 +40,20 @@ def validate(data: dict) -> str:
         return (
             f"model {model} is not allowed, must be one of: {ALLOWED_MODELS.join(',')}"
         )
+
+    if "photometry" in data["inputs"]:
+        if (
+            isinstance(data["inputs"]["photometry"], str)
+            and len(data["inputs"]["photometry"]) > 0
+        ):
+            temp = Table.read(data["inputs"]["photometry"], format="ascii.csv")
+            for row in temp:
+                try:
+                    row["filter"] = verify_and_match_filter(model, row["filter"])
+                except ValueError:
+                    return f"filter {row['filter']} not available for model {model}"
+        else:
+            return "photometry data must be a ascii csv string"
 
     return None
 

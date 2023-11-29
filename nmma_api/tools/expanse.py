@@ -15,6 +15,7 @@ from paramiko.client import SSHClient, AutoAddPolicy
 
 from nmma_api.utils.logs import make_log
 from nmma_api.utils.config import load_config
+from nmma_api.tools.enums import verify_and_match_filter
 
 
 config = load_config()
@@ -138,7 +139,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                     ]
                     for row in data:
                         tt = Time(row["mjd"], format="mjd").isot
-                        filt = row["filter"]
+                        filt = verify_and_match_filter(MODEL, row["filter"])
                         mag = row["mag"]
                         magerr = row["magerr"]
                         f.write(f"{tt} {filt} {mag} {magerr}\n")
