@@ -65,7 +65,7 @@ def retrieval_queue():
                     continue
 
                 # analysis has been running for too long, cancel the job and set the status to job_expired
-                # the submission queue will take of starting the plot generation job
+                # the submission queue will take care of starting the plot generation job
                 # and setting the status to "running_plot"
                 if analysis["status"] == "running" and analysis.get(
                     "submitted_at"
@@ -78,6 +78,7 @@ def retrieval_queue():
                         {"_id": analysis["_id"]},
                         {"$set": {"status": "job_expired"}},
                     )
+                    continue
 
                 # analysis failed to submit to expanse, update the status upstream
                 if analysis["status"] == "failed_submission_to_upload":

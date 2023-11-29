@@ -33,7 +33,7 @@ def submission_queue():
             jobs = submit(analysis_requests)
             for analysis_request in analysis_requests:
                 job = jobs.get(analysis_request["_id"], {})
-                error = jobs.get(analysis_request["_id"], {}).get("error", "")
+                message = jobs.get(analysis_request["_id"], {}).get("message", "")
                 if job.get("job_id") is not None:
                     mongo.db.analysis.update_one(
                         {"_id": analysis_request["_id"]},
@@ -44,6 +44,7 @@ def submission_queue():
                                 else "running",
                                 "job_id": job.get("job_id"),
                                 "submitted_at": job.get("submitted_at"),
+                                "warning": message,
                             }
                         },
                     )
@@ -53,7 +54,7 @@ def submission_queue():
                         {
                             "$set": {
                                 "status": "failed_submission_to_upload",
-                                "error": error,
+                                "error": message,
                                 "job_id": None,
                             }
                         },
