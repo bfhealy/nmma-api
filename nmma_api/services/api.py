@@ -47,15 +47,23 @@ def validate(data: dict) -> str:
             and len(data["inputs"]["photometry"]) > 0
         ):
             temp = Table.read(data["inputs"]["photometry"], format="ascii.csv")
-            kept = 0
+            skipped = 0
+            skipped_filters = []
             for row in temp:
                 try:
                     row["filter"] = verify_and_match_filter(model, row["filter"])
                 except ValueError:
+                    skipped += 1
                     continue
-                kept += 1
-            if len(kept) == 0:
+            if skipped == len(temp):
+                log(
+                    "No valid filters found in photometry data for this model, cancelling analysis submission."
+                )
                 return "no valid filters found in photometry data"
+            elif skipped > 0:
+                log(
+                    f"Will skip {skipped} rows in photometry data due to invalid filters for this model: {', '.join(list(set(skipped_filters)))}"
+                )
 
         else:
             return "photometry data must be a ascii csv string"

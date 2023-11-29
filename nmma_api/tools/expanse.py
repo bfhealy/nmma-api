@@ -119,6 +119,8 @@ def submit(analyses: list[dict], **kwargs) -> bool:
             except Exception as e:
                 raise ValueError(f"input data is not in the expected format {e}")
 
+            skipped = 0
+            skipped_filters = []
             try:
                 # Set trigger time based on first detection
                 TT = np.min(data[data["mag"] != np.ma.masked]["mjd"])
@@ -137,19 +139,18 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                         & (data["mag"] > 0)
                         & (data["magerr"] > 0)
                     ]
-                    kept = 0
                     for row in data:
                         tt = Time(row["mjd"], format="mjd").isot
                         try:
                             filt = verify_and_match_filter(MODEL, row["filter"])
                         except ValueError:
+                            skipped += 1
+                            skipped_filters.append(row["filter"])
                             continue
                         mag = row["mag"]
                         magerr = row["magerr"]
                         f.write(f"{tt} {filt} {mag} {magerr}\n")
-                        kept += 1
-
-                    if kept == 0:
+                    if skipped == len(data):
                         raise ValueError("no valid filters found in photometry data")
             except Exception as e:
                 raise ValueError(f"failed to format data {e}")
@@ -184,6 +185,10 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                     "message": "",
                     "submitted_at": datetime.timestamp(datetime.utcnow()),
                 }
+                if skipped > 0:
+                    jobs[data_dict["_id"]][
+                        "message"
+                    ] = f"Skipped {skipped} observations with filters: {', '.join(list(set(skipped_filters)))} as they are not supported by the model."
                 log(f"Submitted job {job_id} for analysis {data_dict['_id']}")
         except Exception as e:
             log(f"Failed to submit analysis {data_dict['_id']} to expanse: {e}")
@@ -258,6 +263,9 @@ def retrieve(analysis: dict) -> dict:
         # Remove some keys to maintain a reasonable results size
         pop_list = ["samples", "nested_samples"]
         [result.pop(x) for x in pop_list]
+
+        if "warning" in analysis:
+            result["warning"] = analysis["warning"]
 
         f = tempfile.NamedTemporaryFile(suffix=".png", prefix="nmmaplot_", delete=False)
         f.close()
