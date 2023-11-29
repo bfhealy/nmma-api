@@ -41,7 +41,12 @@ FIXED_FILTERS_MODELS = fetch_models()
 def verify_and_match_filter(model, filter):
     if model in CENTRAL_WAVELENGTH_MODELS:
         return filter
-    elif model not in FIXED_FILTERS_MODELS:
+
+    # we only support _tf models for now, so if the model does not end with _tf, we add it
+    if not model.endswith("_tf"):
+        model = model + "_tf"
+
+    if model not in FIXED_FILTERS_MODELS:
         raise ValueError(f"Model {model} not found")
 
     if filter not in FIXED_FILTERS_MODELS[model].get("filters", []):
