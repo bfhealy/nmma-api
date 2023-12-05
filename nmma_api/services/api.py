@@ -3,7 +3,7 @@ import gzip
 import json
 import traceback
 from datetime import datetime
-from astropy.table import Table
+from astropy.table import Table, unique
 
 import tornado.escape
 import tornado.web
@@ -47,6 +47,8 @@ def validate(data: dict) -> str:
             and len(data["inputs"]["photometry"]) > 0
         ):
             temp = Table.read(data["inputs"]["photometry"], format="ascii.csv")
+            # Drop points with duplicate timestamps
+            temp = unique(temp, keys="mjd")
             skipped = 0
             skipped_filters = []
             for row in temp:
