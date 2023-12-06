@@ -91,6 +91,14 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 TMIN = analysis_parameters.get("tmin")
                 TMAX = analysis_parameters.get("tmax")
                 DT = analysis_parameters.get("dt")
+
+                filters = analysis_parameters.get("filters (comma-separated)")
+                if "all" in filters:
+                    FILTERS = None
+                else:
+                    filter_list = [x.strip() for x in filters.split(",")]
+                    FILTERS = ",".join(filter_list)
+
                 SKIP_SAMPLING = ""
                 if status == "job_expired":
                     SKIP_SAMPLING = "--skip-sampling"
@@ -167,7 +175,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 DATA = expanse_data_path
 
                 _, stdout, stderr = expanse.client.exec_command(
-                    f"cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT},SKIP_SAMPLING={SKIP_SAMPLING} {slurm_script_name}"
+                    f"cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT},FILTERS={FILTERS},SKIP_SAMPLING={SKIP_SAMPLING} {slurm_script_name}"
                 )
             except Exception as e:
                 raise ValueError(f"failed to submit job {e}")
