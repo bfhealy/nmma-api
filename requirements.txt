@@ -10,3 +10,4 @@ pre-commit
 astropy
 arviz
 joblib
+sncosmo

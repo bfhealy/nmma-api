@@ -16,6 +16,7 @@ from paramiko.client import SSHClient, AutoAddPolicy
 from nmma_api.utils.logs import make_log
 from nmma_api.utils.config import load_config
 from nmma_api.tools.enums import verify_and_match_filter
+from sncosmo.models import _SOURCES
 
 
 config = load_config()
@@ -86,6 +87,8 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 status = data_dict.get("status", None)
 
                 MODEL = analysis_parameters.get("source")
+                sncosmo_names = [val["name"] for val in _SOURCES.get_loaders_metadata()]
+                PRIOR = MODEL if MODEL not in sncosmo_names else "sncosmo-generic"
                 resource_id = data_dict.get("resource_id", "")
                 LABEL = f"{resource_id}_{timestamp}"
                 TMIN = analysis_parameters.get("tmin")
@@ -167,7 +170,7 @@ def submit(analyses: list[dict], **kwargs) -> bool:
                 DATA = expanse_data_path
 
                 _, stdout, stderr = expanse.client.exec_command(
-                    f"cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT},SKIP_SAMPLING={SKIP_SAMPLING} {slurm_script_name}"
+                    f"cd {expanse_nmma_dir}; sbatch --export=MODEL={MODEL},PRIOR={PRIOR},LABEL={LABEL},TT={TT},DATA={DATA},TMIN={TMIN},TMAX={TMAX},DT={DT},SKIP_SAMPLING={SKIP_SAMPLING} {slurm_script_name}"
                 )
             except Exception as e:
                 raise ValueError(f"failed to submit job {e}")
